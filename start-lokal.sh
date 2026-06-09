@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -13,93 +12,107 @@ echo "║   Lernplan-Generator – Komplett lokal ║"
 echo "╚══════════════════════════════════════╝"
 echo -e "${NC}"
 
-# Homebrew
-if ! command -v brew &>/dev/null; then
-  echo "==> Homebrew installieren..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  [ -f /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
-fi
-echo -e "${GREEN}✓ Homebrew${NC}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FEHLER=0
 
-# Node.js
+# ── Node.js ──────────────────────────────────────────────────────────────────
 if ! command -v node &>/dev/null; then
-  echo "==> Node.js installieren..."
-  brew install node
+  echo -e "${YELLOW}Node.js fehlt.${NC}"
+  echo "Bitte installiere Node.js von: https://nodejs.org/de"
+  echo "Lade die LTS-Version (.pkg) herunter und installiere sie."
+  echo ""
+  echo "Danach dieses Skript erneut starten."
+  open "https://nodejs.org/de" 2>/dev/null
+  FEHLER=1
+else
+  echo -e "${GREEN}✓ Node.js $(node --version)${NC}"
 fi
-echo -e "${GREEN}✓ Node.js $(node --version)${NC}"
 
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 if ! command -v python3 &>/dev/null; then
-  echo "==> Python installieren..."
-  brew install python
+  echo -e "${YELLOW}Python fehlt.${NC}"
+  echo "Bitte installiere Python von: https://www.python.org/downloads/"
+  open "https://www.python.org/downloads/" 2>/dev/null
+  FEHLER=1
+else
+  echo -e "${GREEN}✓ Python $(python3 --version)${NC}"
 fi
-echo -e "${GREEN}✓ Python $(python3 --version)${NC}"
 
-# Ollama
+# ── Ollama ────────────────────────────────────────────────────────────────────
 if ! command -v ollama &>/dev/null; then
-  echo "==> Ollama installieren..."
-  brew install ollama
+  echo -e "${YELLOW}Ollama fehlt.${NC}"
+  echo "Bitte installiere Ollama von: https://ollama.com/download"
+  echo "Nach der Installation Ollama einmal starten, dann dieses Skript neu starten."
+  open "https://ollama.com/download" 2>/dev/null
+  FEHLER=1
+else
+  echo -e "${GREEN}✓ Ollama$(ollama --version 2>/dev/null | grep -o ' [0-9.]*' | head -1)${NC}"
 fi
-echo -e "${GREEN}✓ Ollama installiert${NC}"
 
-# Python-Pakete
+if [ "$FEHLER" -eq 1 ]; then
+  echo ""
+  echo -e "${RED}Bitte fehlende Programme installieren und dieses Skript erneut starten.${NC}"
+  exit 1
+fi
+
+# ── Python-Pakete ─────────────────────────────────────────────────────────────
 echo "==> Python-Pakete installieren..."
-pip3 install -q fastapi uvicorn python-multipart pdfplumber PyPDF2 requests python-dotenv
+pip3 install -q fastapi "uvicorn[standard]" python-multipart pdfplumber PyPDF2 requests python-dotenv
 echo -e "${GREEN}✓ Python-Pakete${NC}"
 
-# Frontend-Pakete
+# ── Frontend-Pakete ───────────────────────────────────────────────────────────
 echo "==> Frontend-Pakete installieren..."
-cd "$(dirname "$0")/frontend"
+cd "$SCRIPT_DIR/frontend"
 npm install --silent
-cd ..
+cd "$SCRIPT_DIR"
 echo -e "${GREEN}✓ Frontend-Pakete${NC}"
 
-# Ollama starten
+# ── Ollama starten ────────────────────────────────────────────────────────────
 echo "==> Ollama starten..."
 ollama serve &>/tmp/ollama.log &
-OLLAMA_PID=$!
 sleep 3
 
-# Modell prüfen / laden
+# ── Modell laden ─────────────────────────────────────────────────────────────
 MODEL="llama3.2:1b"
 if ! ollama list 2>/dev/null | grep -q "llama3.2:1b"; then
-  echo -e "${YELLOW}==> KI-Modell wird heruntergeladen (~1.3 GB, einmalig)...${NC}"
+  echo -e "${YELLOW}==> KI-Modell wird heruntergeladen (~1.3 GB, nur einmalig)...${NC}"
   ollama pull $MODEL
 fi
-echo -e "${GREEN}✓ Modell '$MODEL' bereit${NC}"
+echo -e "${GREEN}✓ Modell bereit${NC}"
 
-# Backend starten
+# ── Backend starten ───────────────────────────────────────────────────────────
 echo "==> Backend starten..."
-cd "$(dirname "$0")/backend"
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+cd "$SCRIPT_DIR/backend"
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
-cd ..
+cd "$SCRIPT_DIR"
 sleep 2
 echo -e "${GREEN}✓ Backend läuft${NC}"
 
-# Frontend starten
+# ── Frontend starten ──────────────────────────────────────────────────────────
 echo "==> Frontend starten..."
-cd "$(dirname "$0")/frontend"
+cd "$SCRIPT_DIR/frontend"
 npm run dev -- --host &
 FRONTEND_PID=$!
-cd ..
+cd "$SCRIPT_DIR"
 sleep 3
 
-# Lokale IP ermitteln
-LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "DEINE-IP")
+# ── IP-Adresse ermitteln ──────────────────────────────────────────────────────
+LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null \
+  || ipconfig getifaddr en1 2>/dev/null \
+  || echo "DEINE-IP")
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  ✅ App läuft – kein Internet nötig!${NC}"
+echo -e "${GREEN}  ✅ App läuft!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  💻 MacBook:  ${BLUE}http://localhost:5173${NC}"
 echo -e "  📱 iPad:     ${BLUE}http://${LOCAL_IP}:5173${NC}"
 echo ""
-echo -e "  ℹ️  MacBook und iPad müssen im selben WLAN sein."
+echo -e "  MacBook und iPad müssen im selben WLAN sein."
 echo ""
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo "Drücke Ctrl+C zum Beenden."
 
-trap "echo ''; echo 'Beende...'; kill $BACKEND_PID $FRONTEND_PID $OLLAMA_PID 2>/dev/null" EXIT INT TERM
+trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; echo 'Beendet.'" EXIT INT TERM
 wait
