@@ -61,9 +61,9 @@ OLLAMA_PID=$!
 sleep 3
 
 # Modell prüfen / laden
-MODEL="llama3"
-if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
-  echo -e "${YELLOW}==> KI-Modell '$MODEL' wird heruntergeladen (~4 GB, einmalig)...${NC}"
+MODEL="llama3.2:1b"
+if ! ollama list 2>/dev/null | grep -q "llama3.2:1b"; then
+  echo -e "${YELLOW}==> KI-Modell wird heruntergeladen (~1.3 GB, einmalig)...${NC}"
   ollama pull $MODEL
 fi
 echo -e "${GREEN}✓ Modell '$MODEL' bereit${NC}"
