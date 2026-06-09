@@ -5,7 +5,8 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN npm run build
+# Baue direkt in /app/static (nicht relativ zum Backend)
+RUN npx vite build --outDir /app/static --emptyOutDir
 
 # Stage 2: Python Backend + gebautes Frontend
 FROM python:3.11-slim
@@ -25,8 +26,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 
 # Gebautes Frontend
-COPY --from=frontend-builder /app/backend/static ./static
+COPY --from=frontend-builder /app/static ./static
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
